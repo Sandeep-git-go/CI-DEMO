@@ -1,0 +1,52 @@
+name: CI Release Workflow
+on:
+  workflow_dispatch:
+    inputs:
+      devCharts:
+        description: 'Repo chart list : stringified array format'
+        required: true
+        default: "[{ 'app': 'pdso-manager', 'tag': '0.0.1-rc' }]"
+      releaseTag:
+        description: 'Final Release Tag'
+        required: true
+        default: '0.1.1'
+
+
+concurrency:
+  group: cicd_release        
+
+jobs:
+  release: 
+    runs-on: [k8s]  
+    name: '${{ matrix.cfg.app }} ${{ matrix.cfg.tag }} release'
+    strategy:
+      fail-fast: false
+      matrix:
+        cfg: ${{ fromJSON(github.event.inputs.devCharts) }}        
+    steps:      
+    - name: Release
+      uses: pentaho/pentaho-composite-actions@release
+      id: release
+      with:
+        projectName: ${{ matrix.cfg.app }} 
+        devTag: ${{ matrix.cfg.tag }}      
+        releaseTag:  ${{ inputs.releaseTag }}           
+        globalArtifactoryUser: ${{ vars.PDSO_ARTIFACTORY_USERNAME }}
+        globalArtifactoryToken: ${{ secrets.PDSO_ARTIFACTORY_TOKEN }} 
+        gitSAName: ${{ secrets.GIT_SA_NAME }}
+        gitSAUser: ${{ secrets.GIT_SA_USER }}  
+                  
+  tag: 
+    needs: [release]  
+    runs-on: [k8s]  
+    name: 'Tag release'    
+    steps:        
+    - name: Checkout
+      uses: actions/checkout@v3    
+       
+    - name: Tag released version
+      uses: anothrNick/github-tag-action@1.39.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        RELEASE_BRANCHES: ${{ github.ref_name }}
+        CUSTOM_TAG: ${{ inputs.releaseTag }}        
