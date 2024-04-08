@@ -1,0 +1,31 @@
+name: CI Dispatch Workflow
+
+on:
+  workflow_run:
+    workflows: ["CI Merge Workflow", "CI PreRelease Workflow", "CI Release Workflow"]
+    types:
+      - completed
+
+concurrency:
+  group: cicd_dispatch
+
+jobs:  
+  repository-dispatch:  
+    runs-on: [k8s]  
+    name: 'repository dispatch'    
+    steps:        
+      - name: Checkout
+        uses: actions/checkout@v3 
+
+      - name: Get Version for Dispatch
+        run: |
+          echo dispatchVersion=$(awk -v FS="appVersion = " 'NF>1{print $2}' apps/pdso-manager/Makefile ) >> $GITHUB_ENV
+        shell: bash  
+
+      - name: Repository Dispatch
+        uses: peter-evans/repository-dispatch@v2
+        with:
+          token: ${{ secrets.HV_ACTIONS_GIT_TOKEN }}
+          repository: pentaho/pentaho-devops
+          event-type: pdso-event
+          client-payload: '{"folder": "pdso", "file": "templates/pdso-manager", "new_version": "${{ env.dispatchVersion }}"}' 
