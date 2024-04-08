@@ -1,0 +1,109 @@
+replicaCount: 1
+
+image:
+  repository: one.hitachivantara.com/docker
+  name: pdso-manager
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: ""
+
+imagePullSecrets: []
+
+nameOverride: ""
+
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+
+securityContext: {}
+
+
+service:
+  type: ClusterIP
+  port: 3000
+
+resources: {}
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+autoscaling:
+  enabled: false
+  # minReplicas: 1
+  # maxReplicas: 100
+  # targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+pdc:
+  mongodb:
+    secretName: pdc-mongodb-url
+  auth:
+    secretName: pdc-auth-token
+  graphql:
+    url: http://fe:3000/graphql
+  appServer:
+    url: http://fe:3000
+
+pdso:
+  basePath: /pdso-api
+  logLevel: INFO
+  vfs:
+    url: http://pdso-vfs:5002
+  ruleEnine:
+    url: http://rules-api:8888/rule-api
+
+kafka:
+  broker:
+    endpoint: "kafka:9092"
+  client:
+    id: "pdso-manager"
+  consumer:
+    GroupId: "pdso-manager"
+    sessionTimeout: 300000
+    heartBeatInterval: 10000
+  retry:
+    count: 10
+    interval: 5000
+  producer:
+    initialDelay: 1000
+
+
+redis:
+  master:
+    host: "redis-master"
+    port: 6379
+    passwordSecret: "redis-master-password"
+  replica:
+    host: "redis-replica"
+    port: 6379
+    passwordSecret: "redis-replica-password"
+
+iam:
+  url: http://um-css-admin-api:5000
+
+keycloak:
+  url: http://um-keycloak:8080/keycloak
+
+services:
+  crypto:
+    url: http://crypto-service:5050/crypto-service
