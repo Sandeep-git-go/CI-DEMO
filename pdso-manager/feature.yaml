@@ -1,0 +1,75 @@
+name: CI Feature Workflow
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'Application list'
+        required: true
+        default: 'pdso-manager'
+        type: choice
+        options:
+        - all
+        - pdso-manager
+
+concurrency:
+  group: cicd_feature
+
+jobs:
+  set-matrix:
+    runs-on: [k8s]  
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Get matrix inputs
+        id: set-matrix
+        run: |
+          if [ ${{ inputs.app }}  == all ]
+          then
+            echo matrix=$(ls -d */* |awk -F '/' '{print $NF'} |awk '!seen[$0]++' | jq -R -s -c 'split("\n") | map(select(length > 0))') >> $GITHUB_OUTPUT 
+          else
+            echo matrix=$(echo ${{ inputs.app }} | jq -R -s -c 'split("\n") | map(select(length > 0))') >> $GITHUB_OUTPUT 
+          fi
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }} 
+
+
+  docker:
+    needs: [set-matrix]
+    runs-on: [k8s]         
+    name: '${{ matrix.project }} docker build'    
+    strategy:
+      matrix:
+        project: ${{ fromJson(needs.set-matrix.outputs.matrix) }}                 
+    steps: 
+      - name: Docker Build & Push
+        uses: pentaho/pentaho-composite-actions@docker
+        id: docker
+        with:
+          projectName: ${{ matrix.project }}
+          globalArtifactoryUser: ${{ vars.PDSO_ARTIFACTORY_USERNAME }}
+          globalArtifactoryToken: ${{ secrets.PDSO_ARTIFACTORY_TOKEN }} 
+          gitSAName: ${{ vars.HV_ACTIONS_GIT_EMAIL }}
+          gitSAUser: ${{ vars.HV_ACTIONS_GIT_USER }}  
+          isMerge: false
+
+  helm:
+    needs: [set-matrix, docker]
+    runs-on: [k8s]        
+    name: '${{ matrix.project }} helm package'       
+    strategy:
+      matrix:
+        project: ${{ fromJson(needs.set-matrix.outputs.matrix) }}               
+    steps: 
+      - name: Helm Package & Push
+        uses: pentaho/pentaho-composite-actions@helm
+        id: helm
+        with:
+          projectName: ${{ matrix.project }}
+          globalArtifactoryUser: ${{ vars.PDSO_ARTIFACTORY_USERNAME }}
+          globalArtifactoryToken: ${{ secrets.PDSO_ARTIFACTORY_TOKEN }} 
+          gitSAName: ${{ vars.HV_ACTIONS_GIT_EMAIL }}
+          gitSAUser: ${{ vars.HV_ACTIONS_GIT_USER }}
+          isMerge: false
